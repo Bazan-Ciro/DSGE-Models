@@ -55,7 +55,7 @@ let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
 // Shock AR(1)
 A[t] = rho*A[t-1] + eps;
 
-// MATRIZ ESTABLE
+// MATRIZ ESTABLE (clave)
 let x_new = [
 0.8*x[0] + 0.2*A[t],
 0.7*x[1] + 0.2*x[0],
@@ -86,7 +86,7 @@ TB[t] = Y[t] - C[t] - I[t];
 // Current account
 CA[t] = TB[t] + R[t]*D[t];
 
-// Ratios
+// Ratios (SIN explosiones)
 TBY[t] = TB[t];
 CAY[t] = CA[t];
 
@@ -118,11 +118,11 @@ yaxis:{title:"Deviation from steady state"}
 }
 
 function runIRF(){
-plot(simulate(10,1,false),"Figura 01 (IRF)");
+plot(simulate(10,1,false),"Figura 01 (IRF - Stable)");
 }
 
 function runSTOCH(){
-plot(simulate(80,1,true),"Figura 02 (Stochastic)");
+plot(simulate(200,1,true),"Figura 02 (Stochastic - Stable)");
 }
 
 </script>
