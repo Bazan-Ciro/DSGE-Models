@@ -1,21 +1,27 @@
 <hr>
-<h2>Interactive SOE-RBC Simulator</h2>
+<h2>SOE-RBC Interactive Simulator (Extended Parameters)</h2>
 
-<p><b>Choose simulation type:</b></p>
+<button onclick="runIRF()">Run IRF</button>
+<button onclick="runStochastic()">Run Stochastic</button>
 
-<button onclick="runIRF()">Run IRF (Figure 01)</button>
-<button onclick="runStochastic()">Run Stochastic Simulation (Figure 02)</button>
+<h3>Parameters</h3>
 
-<div id="controls" style="margin-top:15px;">
-<label>Shock size (TFP):</label>
-<input type="range" id="shock" min="0.01" max="2" step="0.01" value="1">
-<span id="shock_val">1</span>
+<div id="controls">
 
-<br>
+σ <input type="number" id="sigma" value="2" step="0.1"><br>
+δ <input type="number" id="delta" value="0.1" step="0.01"><br>
+r0 <input type="number" id="r0" value="0.04" step="0.01"><br>
+β <input type="number" id="beta" value="0.96" step="0.01"><br>
+α <input type="number" id="alpha" value="0.33" step="0.01"><br>
+w <input type="number" id="w" value="1" step="0.1"><br>
+φ <input type="number" id="phi" value="1" step="0.1"><br>
+Ψ1 <input type="number" id="psi1" value="0.01" step="0.01"><br>
+ρ <input type="number" id="rho" value="0.9" step="0.01"><br>
+η <input type="number" id="eta" value="0.1" step="0.01"><br>
+κ <input type="number" id="kappa" value="0.2" step="0.01"><br>
 
-<label>Persistence (ρ):</label>
-<input type="range" id="rho" min="0" max="0.99" step="0.01" value="0.9">
-<span id="rho_val">0.9</span>
+Shock <input type="number" id="shock" value="1" step="0.1"><br>
+
 </div>
 
 <div id="plot" style="width:100%;height:600px;"></div>
@@ -24,80 +30,90 @@
 
 <script>
 
-// Update sliders
-document.getElementById("shock").oninput = function() {
-    document.getElementById("shock_val").innerText = this.value;
-};
+function getParams(){
+    return {
+        sigma: parseFloat(sigma.value),
+        delta: parseFloat(delta.value),
+        r0: parseFloat(r0.value),
+        beta: parseFloat(beta.value),
+        alpha: parseFloat(alpha.value),
+        w: parseFloat(w.value),
+        phi: parseFloat(phi.value),
+        psi1: parseFloat(psi1.value),
+        rho: parseFloat(rho.value),
+        eta: parseFloat(eta.value),
+        kappa: parseFloat(kappa.value),
+        shock: parseFloat(shock.value)
+    };
+}
 
-document.getElementById("rho").oninput = function() {
-    document.getElementById("rho_val").innerText = this.value;
-};
+function simulate(T, stochastic=false){
 
-// Simple DSGE-like dynamics
-function simulate(T, shockSize, rho, stochastic=false) {
+    let p = getParams();
 
-    let y = Array(T).fill(0);
-    let c = Array(T).fill(0);
-    let i = Array(T).fill(0);
-    let h = Array(T).fill(0);
-    let A = Array(T).fill(0);
-
-    for (let t = 1; t < T; t++) {
-
-        let eps = stochastic ? shockSize * (Math.random()*2-1) : (t===1 ? shockSize : 0);
-
-        A[t] = rho * A[t-1] + eps;
-
-        // Reduced-form relationships (stylized RBC)
-        y[t] = 0.8*y[t-1] + 0.5*A[t];
-        c[t] = 0.7*c[t-1] + 0.3*y[t];
-        i[t] = 0.6*i[t-1] + 0.6*A[t];
-        h[t] = 0.5*h[t-1] + 0.4*A[t];
+    let y=[], c=[], i=[], h=[], k=[], d=[], A=[];
+    
+    for(let t=0;t<T;t++){
+        y.push(0); c.push(0); i.push(0);
+        h.push(0); k.push(1); d.push(0); A.push(0);
     }
 
-    return {y,c,i,h,A};
+    for(let t=1;t<T;t++){
+
+        let eps = stochastic ? p.shock*(Math.random()*2-1) : (t===1 ? p.shock : 0);
+
+        // TFP
+        A[t] = p.rho*A[t-1] + eps;
+
+        // Capital accumulation
+        k[t] = (1-p.delta)*k[t-1] + i[t-1];
+
+        // Production (log-linear approx)
+        y[t] = p.alpha*k[t-1] + (1-p.alpha)*h[t-1] + A[t];
+
+        // Consumption (Euler approx)
+        c[t] = c[t-1] + (1/p.sigma)*(p.r0 - p.beta*(y[t]-y[t-1]));
+
+        // Investment
+        i[t] = p.kappa*(y[t] - c[t]) - p.delta*k[t-1];
+
+        // Labor supply
+        h[t] = (1/p.phi)*(p.w - c[t]);
+
+        // Debt dynamics
+        d[t] = d[t-1] + p.eta*(c[t] + i[t] - y[t]) + p.psi1*d[t-1];
+    }
+
+    return {y,c,i,h,k,d,A};
 }
 
-// FIGURE 01 → IRF
-function runIRF() {
-
-    let shock = parseFloat(document.getElementById("shock").value);
-    let rho   = parseFloat(document.getElementById("rho").value);
-
-    let data = simulate(40, shock, rho, false);
-
-    plotData(data, "Impulse Response Functions (Figure 01)");
-}
-
-// FIGURE 02 → Stochastic simulation
-function runStochastic() {
-
-    let shock = parseFloat(document.getElementById("shock").value);
-    let rho   = parseFloat(document.getElementById("rho").value);
-
-    let data = simulate(200, shock, rho, true);
-
-    plotData(data, "Stochastic Simulation (Figure 02)");
-}
-
-// Plot function
-function plotData(data, title) {
+function plot(data, title){
 
     let traces = [
-        {y: data.y, name:"Output (y)"},
-        {y: data.c, name:"Consumption (c)"},
-        {y: data.i, name:"Investment (i)"},
-        {y: data.h, name:"Labor (h)"},
-        {y: data.A, name:"TFP (A)"}
+        {y:data.y, name:"Output"},
+        {y:data.c, name:"Consumption"},
+        {y:data.i, name:"Investment"},
+        {y:data.h, name:"Labor"},
+        {y:data.k, name:"Capital"},
+        {y:data.d, name:"Debt"},
+        {y:data.A, name:"TFP"}
     ];
 
-    let layout = {
+    Plotly.newPlot("plot", traces, {
         title: title,
-        xaxis: {title:"Time"},
-        yaxis: {title:"Deviation from steady state"}
-    };
+        xaxis:{title:"Time"},
+        yaxis:{title:"Deviation"}
+    });
+}
 
-    Plotly.newPlot("plot", traces, layout);
+function runIRF(){
+    let data = simulate(50,false);
+    plot(data,"Impulse Response Functions");
+}
+
+function runStochastic(){
+    let data = simulate(200,true);
+    plot(data,"Stochastic Simulation");
 }
 
 </script>
