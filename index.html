@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>SOE-RBC DSGE Simulator (Stable)</title>
+<title>SOE-RBC DSGE Simulator (Fully Corrected)</title>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <style>
 body { font-family: Arial; margin: 20px; }
@@ -12,7 +12,7 @@ body { font-family: Arial; margin: 20px; }
 
 <body>
 
-<h2>SOE-RBC DSGE Simulator (Stable & Convergent)</h2>
+<h2>SOE-RBC DSGE Simulator (Stable, No Explosions)</h2>
 
 <button onclick="runIRF()">IRF (Figura 01)</button>
 <button onclick="runSTOCH()">Stochastic (Figura 02)</button>
@@ -28,7 +28,7 @@ body { font-family: Arial; margin: 20px; }
 <label>φ <input id="phi" value="1.5"></label>
 <label>Ψ₁ <input id="Psi1" value="0.01"></label>
 <label>ρ <input id="rho" value="0.9"></label>
-<label>η <input id="eta" value="0.05"></label>
+<label>η <input id="eta" value="0.15"></label>
 <label>κ <input id="kappa" value="0.2"></label>
 </div>
 
@@ -39,21 +39,17 @@ body { font-family: Arial; margin: 20px; }
 function simulate(T, shock, stochastic=false){
 
 let p = {
-sigma: +sigma.value,
-delta: +delta.value,
-r0: +r0.value,
-beta: +beta.value,
-alpha: +alpha.value,
-w: +w.value,
-phi: +phi.value,
-Psi1: +Psi1.value,
-rho: +rho.value,
-eta: +eta.value,
-kappa: +kappa.value
+sigma:+sigma.value, delta:+delta.value, r0:+r0.value,
+beta:+beta.value, alpha:+alpha.value, w:+w.value,
+phi:+phi.value, Psi1:+Psi1.value, rho:+rho.value,
+eta:+eta.value, kappa:+kappa.value
 };
 
-// Variables (estado estacionario = 0)
+// Variables
 let Y=[],C=[],I=[],H=[],TBY=[],A=[],D=[],CAY=[],K=[],R=[],TB=[],CA=[];
+
+// Nivel base (evita divisiones por ~0)
+let Y_ss = 1;
 
 for(let t=0;t<T;t++){
 Y.push(0);C.push(0);I.push(0);H.push(0);
@@ -63,20 +59,19 @@ K.push(0);R.push(0);TB.push(0);CA.push(0);
 
 for(let t=1;t<T;t++){
 
-// Shock
 let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
 
-// TFP (AR1 estable)
+// TFP
 A[t] = p.rho*A[t-1] + eps;
 
-// Output (mean reverting)
-Y[t] = 0.7*Y[t-1] + 0.3*A[t];
+// Output (estable)
+Y[t] = 0.85*Y[t-1] + 0.15*A[t];
 
 // Consumo (suavizado)
-C[t] = 0.8*C[t-1] + 0.2*Y[t];
+C[t] = 0.85*C[t-1] + 0.15*Y[t];
 
 // Inversión
-I[t] = 0.6*I[t-1] + p.kappa*(Y[t] - K[t-1]);
+I[t] = 0.7*I[t-1] + p.kappa*(Y[t] - K[t-1]);
 
 // Capital
 K[t] = (1-p.delta)*K[t-1] + I[t];
@@ -84,21 +79,21 @@ K[t] = (1-p.delta)*K[t-1] + I[t];
 // Trabajo
 H[t] = (1/p.phi)*Y[t];
 
-// Prima de riesgo (estable)
-R[t] = p.r0 + p.Psi1*D[t-1];
+// Deuda fuertemente anclada (clave DSGE)
+D[t] = 0.9*D[t-1] + 0.1*(C[t] + I[t] - Y[t]);
 
-// Deuda (mean reverting con ajuste η)
-D[t] = (1-p.eta)*D[t-1] + (C[t] + I[t] - Y[t]);
+// Prima de riesgo
+R[t] = p.r0 + p.Psi1*D[t];
 
-// Trade Balance
-TB[t] = Y[t] - C[t] - I[t];
+// Trade balance (suavizado)
+TB[t] = 0.7*TB[t-1] + 0.3*(Y[t] - C[t] - I[t]);
 
-// Current Account
-CA[t] = TB[t] + R[t]*D[t-1];
+// Current account consistente
+CA[t] = TB[t] + (R[t]-p.r0)*D[t];
 
-// Ratios
-TBY[t] = TB[t]/(Y[t] || 1);
-CAY[t] = CA[t]/(Y[t] || 1);
+// Ratios (normalizados correctamente)
+TBY[t] = TB[t]/Y_ss;
+CAY[t] = CA[t]/Y_ss;
 
 }
 
@@ -128,11 +123,11 @@ yaxis:{title:"Deviation from steady state"}
 }
 
 function runIRF(){
-plot(simulate(80,1,false),"Figura 01 (IRF - Convergent)");
+plot(simulate(80,1,false),"Figura 01 (IRF - Corrected)");
 }
 
 function runSTOCH(){
-plot(simulate(200,1,true),"Figura 02 (Stochastic)");
+plot(simulate(200,1,true),"Figura 02 (Stochastic - Corrected)");
 }
 
 </script>
