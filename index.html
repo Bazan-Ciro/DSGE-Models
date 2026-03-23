@@ -19,10 +19,17 @@ body { font-family: Arial; margin: 20px; }
 
 <h3>Parameters</h3>
 <div class="grid">
-<label>ρ <input id="rho" value="0.9"></label>
+<label>σ <input id="sigma" value="2"></label>
 <label>δ <input id="delta" value="0.1"></label>
+<label>r₀ <input id="r0" value="0.04"></label>
+<label>β <input id="beta" value="0.96"></label>
+<label>α <input id="alpha" value="0.33"></label>
+<label>w <input id="w" value="1"></label>
+<label>φ <input id="phi" value="1.5"></label>
+<label>Ψ₁ <input id="Psi1" value="0.01"></label>
+<label>ρ <input id="rho" value="0.9"></label>
+<label>η <input id="eta" value="0.15"></label>
 <label>κ <input id="kappa" value="0.2"></label>
-<label>Ψ₁ <input id="Psi1" value="0.02"></label>
 </div>
 
 <div id="plot" style="height:850px;"></div>
@@ -118,7 +125,7 @@ yaxis:{title:"Deviation from steady state"}
 }
 
 function runIRF(){
-plot(simulate(80,1,false),"Figura 01 (IRF - Stable)");
+plot(simulate(10,1,false),"Figura 01 (IRF - Stable)");
 }
 
 function runSTOCH(){
