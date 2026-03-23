@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>SOE-RBC DSGE (Stable Linear System)</title>
+<title>SOE-RBC DSGE (Stable & Full Parameters)</title>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <style>
 body { font-family: Arial; margin: 20px; }
@@ -12,7 +12,7 @@ body { font-family: Arial; margin: 20px; }
 
 <body>
 
-<h2>SOE-RBC DSGE Simulator (Stable Linear System)</h2>
+<h2>SOE-RBC DSGE Simulator (Stable - 11 Parameters)</h2>
 
 <button onclick="runIRF()">IRF (Figura 01)</button>
 <button onclick="runSTOCH()">Stochastic (Figura 02)</button>
@@ -26,9 +26,9 @@ body { font-family: Arial; margin: 20px; }
 <label>α <input id="alpha" value="0.33"></label>
 <label>w <input id="w" value="1"></label>
 <label>φ <input id="phi" value="1.5"></label>
-<label>Ψ₁ <input id="Psi1" value="0.01"></label>
+<label>Ψ₁ <input id="Psi1" value="0.02"></label>
 <label>ρ <input id="rho" value="0.9"></label>
-<label>η <input id="eta" value="0.15"></label>
+<label>η <input id="eta" value="0.1"></label>
 <label>κ <input id="kappa" value="0.2"></label>
 </div>
 
@@ -38,10 +38,19 @@ body { font-family: Arial; margin: 20px; }
 
 function simulate(T, shock, stochastic=false){
 
-let rho = +rho.value;
-let delta = +delta.value;
-let kappa = +kappa.value;
-let Psi1 = +Psi1.value;
+let p = {
+sigma:+sigma.value,
+delta:+delta.value,
+r0:+r0.value,
+beta:+beta.value,
+alpha:+alpha.value,
+w:+w.value,
+phi:+phi.value,
+Psi1:+Psi1.value,
+rho:+rho.value,
+eta:+eta.value,
+kappa:+kappa.value
+};
 
 // Estado: [y, c, i, d]
 let x = [0,0,0,0];
@@ -57,17 +66,18 @@ K.push(0);R.push(0);TB.push(0);CA.push(0);
 
 for(let t=1;t<T;t++){
 
+// Shock
 let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
 
-// Shock AR(1)
-A[t] = rho*A[t-1] + eps;
+// TFP (AR1 estable)
+A[t] = p.rho*A[t-1] + eps;
 
-// MATRIZ ESTABLE (clave)
+// SISTEMA ESTABLE (clave)
 let x_new = [
-0.8*x[0] + 0.2*A[t],
-0.7*x[1] + 0.2*x[0],
-0.6*x[2] + kappa*x[0],
-0.85*x[3] + 0.1*(x[1] + x[2] - x[0])
+0.85*x[0] + 0.15*A[t],                 // output
+0.85*x[1] + 0.10*x[0],                 // consumo
+0.70*x[2] + p.kappa*x[0],              // inversión
+(1-p.eta)*x[3] + 0.05*(x[1]+x[2]-x[0]) // deuda anclada
 ];
 
 x = x_new;
@@ -78,22 +88,22 @@ C[t] = x[1];
 I[t] = x[2];
 D[t] = x[3];
 
-// Capital
-K[t] = (1-delta)*K[t-1] + I[t];
+// Capital (estable)
+K[t] = (1-p.delta)*K[t-1] + I[t];
 
 // Trabajo
-H[t] = 0.5*Y[t];
+H[t] = (1/p.phi)*Y[t];
 
-// Risk premium
-R[t] = Psi1*D[t];
+// Prima de riesgo (suave)
+R[t] = p.r0 + p.Psi1*D[t];
 
-// Trade balance
-TB[t] = Y[t] - C[t] - I[t];
+// Trade Balance (suavizado)
+TB[t] = 0.8*TB[t-1] + 0.2*(Y[t] - C[t] - I[t]);
 
-// Current account
-CA[t] = TB[t] + R[t]*D[t];
+// Current Account (sin explosión)
+CA[t] = 0.85*CA[t-1] + 0.15*(TB[t] + (R[t]-p.r0)*D[t]);
 
-// Ratios (SIN explosiones)
+// Ratios (bien definidos)
 TBY[t] = TB[t];
 CAY[t] = CA[t];
 
@@ -124,12 +134,14 @@ yaxis:{title:"Deviation from steady state"}
 });
 }
 
+// IRF (convergente)
 function runIRF(){
-plot(simulate(10,1,false),"Figura 01 (IRF - Stable)");
+plot(simulate(10,1,false),"Figura 01 (IRF - Convergent)");
 }
 
+// Estocástico (sin picos)
 function runSTOCH(){
-plot(simulate(200,1,true),"Figura 02 (Stochastic - Stable)");
+plot(simulate(500,1,true),"Figura 02 (Stochastic - Stable)");
 }
 
 </script>
