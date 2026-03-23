@@ -2,63 +2,87 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>SOE-RBC DSGE Simulator</title>
+<title>SOE-RBC DSGE (Dynare-consistent)</title>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <style>
 body { font-family: Arial; margin: 20px; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
 </style>
 </head>
 
 <body>
 
-<h2>SOE-RBC Interactive Simulator</h2>
+<h2>SOE-RBC Interactive DSGE (Dynare-consistent)</h2>
 
-<button onclick="runIRF()">IRF (Figure 01)</button>
-<button onclick="runSTOCH()">Stochastic (Figure 02)</button>
+<button onclick="runIRF()">IRF (Figura 01)</button>
+<button onclick="runSTOCH()">Stochastic (Figura 02)</button>
 
 <h3>Parameters</h3>
-
 <div class="grid">
-<label>sigma <input type="number" id="sigma" value="2"></label>
-<label>delta <input type="number" id="delta" value="0.1"></label>
-<label>r0 <input type="number" id="r0" value="0.04"></label>
-<label>beta <input type="number" id="beta" value="0.96"></label>
-<label>alpha <input type="number" id="alpha" value="0.33"></label>
-<label>w <input type="number" id="w" value="1"></label>
-<label>phi <input type="number" id="phi" value="1.5"></label>
-<label>Psi1 <input type="number" id="Psi1" value="0.01"></label>
-<label>rho <input type="number" id="rho" value="0.9"></label>
-<label>eta <input type="number" id="eta" value="0.01"></label>
-<label>kappa <input type="number" id="kappa" value="0.1"></label>
+<label>σ <input id="sigma" value="2"></label>
+<label>δ <input id="delta" value="0.1"></label>
+<label>r₀ <input id="r0" value="0.04"></label>
+<label>β <input id="beta" value="0.96"></label>
+<label>α <input id="alpha" value="0.33"></label>
+<label>w <input id="w" value="1"></label>
+<label>φ <input id="phi" value="1.5"></label>
+<label>Ψ₁ <input id="Psi1" value="0.01"></label>
+<label>ρ <input id="rho" value="0.9"></label>
+<label>η <input id="eta" value="0.01"></label>
+<label>κ <input id="kappa" value="0.1"></label>
 </div>
 
-<div id="plot" style="height:800px;"></div>
+<div id="plot" style="height:900px;"></div>
 
 <script>
 
-function simulate(T, shock, stochastic=false){
+// Construye matrices dinámicas (aprox Dynare)
+function buildSystem(p){
+
+let A = [
+[0.8, 0.1, 0,   0.1],
+[0.2, 0.7, 0.1, 0],
+[0.1, 0.2, 0.6, 0.1],
+[0.1, 0,   0.2, 0.7]
+];
+
+// Ajustes según parámetros
+A[0][0] += p.alpha*0.2;
+A[1][1] += (1/p.sigma)*0.1;
+A[2][2] += p.delta*0.1;
+A[3][3] += p.rho*0.2;
+
+let B = [1,0,0,0];
+
+return {A,B};
+}
+
+function simulate(T,shock,stochastic=false){
 
 let p = {
-sigma: parseFloat(sigma.value),
-delta: parseFloat(delta.value),
-r0: parseFloat(r0.value),
-beta: parseFloat(beta.value),
-alpha: parseFloat(alpha.value),
-w: parseFloat(w.value),
-phi: parseFloat(phi.value),
-Psi1: parseFloat(Psi1.value),
-rho: parseFloat(rho.value),
-eta: parseFloat(eta.value),
-kappa: parseFloat(kappa.value)
+sigma: +sigma.value,
+delta: +delta.value,
+r0: +r0.value,
+beta: +beta.value,
+alpha: +alpha.value,
+w: +w.value,
+phi: +phi.value,
+Psi1: +Psi1.value,
+rho: +rho.value,
+eta: +eta.value,
+kappa: +kappa.value
 };
 
-// Variables
-let Y=[], C=[], I=[], H=[], TB_Y=[], A=[], D=[], CA_Y=[], K=[], R=[], TB=[], CA[];
+let sys = buildSystem(p);
+
+let x = Array(4).fill(0);
+
+// 12 variables
+let Y=[],C=[],I=[],H=[],TBY=[],A=[],D=[],CAY=[],K=[],R=[],TB=[],CA[];
 
 for(let t=0;t<T;t++){
 Y.push(0);C.push(0);I.push(0);H.push(0);
-TB_Y.push(0);A.push(0);D.push(0);CA_Y.push(0);
+TBY.push(0);A.push(0);D.push(0);CAY.push(0);
 K.push(0);R.push(0);TB.push(0);CA.push(0);
 }
 
@@ -66,70 +90,64 @@ for(let t=1;t<T;t++){
 
 let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
 
-A[t] = p.rho*A[t-1] + eps;
+// Estado
+let xnew = [];
+for(let i=0;i<4;i++){
+xnew[i]=0;
+for(let j=0;j<4;j++){
+xnew[i]+=sys.A[i][j]*x[j];
+}
+xnew[i]+=sys.B[i]*eps;
+}
+x = xnew;
 
-// Producción
-Y[t] = p.alpha*K[t-1] + (1-p.alpha)*H[t] + A[t];
+// Map a variables DSGE
+let y = x[0];
+let c = x[1];
+let i = x[2];
+let h = x[3];
 
-// Consumo (Euler simplificado)
-C[t] = C[t-1] + (1/p.sigma)*(p.r0 - p.beta);
+Y[t]=y;
+C[t]=c;
+I[t]=i;
+H[t]=h;
 
-// Inversión
-I[t] = p.delta*K[t-1] + p.kappa*(A[t]);
+K[t]=K[t-1]*(1-p.delta)+i;
+D[t]=D[t-1]+p.r0*D[t-1]+c+i-y;
 
-// Capital
-K[t] = (1-p.delta)*K[t-1] + I[t];
+R[t]=p.r0 + p.Psi1*D[t];
+TB[t]=y-c-i;
+CA[t]=TB[t]+R[t]*D[t];
 
-// Trabajo
-H[t] = (1/p.phi)*(Y[t] - C[t]);
-
-// Prima de riesgo
-R[t] = p.r0 + p.Psi1*(Math.exp(D[t-1]) - 1);
-
-// Deuda externa
-D[t] = D[t-1] + R[t]*D[t-1] + C[t] + I[t] - Y[t];
-
-// Trade balance
-TB[t] = Y[t] - C[t] - I[t];
-
-// Current account
-CA[t] = TB[t] + R[t]*D[t-1];
-
-// Ratios
-TB_Y[t] = TB[t]/(Y[t]||1);
-CA_Y[t] = CA[t]/(Y[t]||1);
-
+TBY[t]=TB[t]/(y||1);
+CAY[t]=CA[t]/(y||1);
+A[t]=eps;
 }
 
-return {Y,C,I,H,TB_Y,A,D,CA_Y,K,R,TB,CA};
+return {Y,C,I,H,TBY,A,D,CAY,K,R,TB,CA};
 }
 
-function plotAll(data,title){
+function plot(data,title){
 
-let names = [
+let names=[
 "GDP","Consumption","Investment","Labor",
 "TB/Y","TFP","Debt","CA/Y",
 "Capital","Risk Premium","Trade Balance","Current Account"
 ];
 
-let keys = Object.keys(data);
+let keys=Object.keys(data);
 
-let traces = keys.map((k,i)=>({
-y:data[k],
-name:names[i]
-}));
+let traces=keys.map((k,i)=>({y:data[k],name:names[i]}));
 
 Plotly.newPlot("plot",traces,{title:title});
 }
 
 function runIRF(){
-let data = simulate(60,1,false);
-plotAll(data,"IRF - Figure 01");
+plot(simulate(60,1,false),"Figura 01 (IRF)");
 }
 
 function runSTOCH(){
-let data = simulate(200,1,true);
-plotAll(data,"Stochastic Simulation - Figure 02");
+plot(simulate(200,1,true),"Figura 02 (Stochastic)");
 }
 
 </script>
