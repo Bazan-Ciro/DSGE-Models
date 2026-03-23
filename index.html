@@ -1,39 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>SOE-RBC DSGE Simulator</title>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<style>
-body { font-family: Arial; margin: 20px; }
-.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
-</style>
-</head>
-
-<body>
-
-<h2>SOE-RBC Interactive DSGE</h2>
-
-<button onclick="runIRF()">IRF (Figura 01)</button>
-<button onclick="runSTOCH()">Stochastic (Figura 02)</button>
-
-<h3>Parameters</h3>
-<div class="grid">
-<label>σ <input id="sigma" value="2"></label>
-<label>δ <input id="delta" value="0.1"></label>
-<label>r₀ <input id="r0" value="0.04"></label>
-<label>β <input id="beta" value="0.96"></label>
-<label>α <input id="alpha" value="0.33"></label>
-<label>w <input id="w" value="1"></label>
-<label>φ <input id="phi" value="1.5"></label>
-<label>Ψ₁ <input id="Psi1" value="0.01"></label>
-<label>ρ <input id="rho" value="0.9"></label>
-<label>η <input id="eta" value="0.01"></label>
-<label>κ <input id="kappa" value="0.1"></label>
-</div>
-
-<div id="plot" style="height:800px;"></div>
-
 <script>
 
 function simulate(T, shock, stochastic=false){
@@ -44,15 +8,13 @@ delta: +document.getElementById("delta").value,
 r0: +document.getElementById("r0").value,
 beta: +document.getElementById("beta").value,
 alpha: +document.getElementById("alpha").value,
-w: +document.getElementById("w").value,
 phi: +document.getElementById("phi").value,
 Psi1: +document.getElementById("Psi1").value,
 rho: +document.getElementById("rho").value,
-eta: +document.getElementById("eta").value,
 kappa: +document.getElementById("kappa").value
 };
 
-// 12 variables
+// Variables
 let Y=[],C=[],I=[],H=[],TBY=[],A=[],D=[],CAY=[],K=[],R=[],TB=[],CA=[];
 
 for(let t=0;t<T;t++){
@@ -63,36 +25,37 @@ K.push(0);R.push(0);TB.push(0);CA.push(0);
 
 for(let t=1;t<T;t++){
 
-let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
+// Shock
+let eps = stochastic ? shock*(Math.random()-0.5) : (t===1 ? shock : 0);
 
-// TFP
+// TFP (AR1 estable)
 A[t] = p.rho*A[t-1] + eps;
 
-// Producción
-Y[t] = p.alpha*K[t-1] + (1-p.alpha)*H[t] + A[t];
+// Capital (estable)
+K[t] = (1 - p.delta)*K[t-1] + p.kappa*A[t];
 
-// Consumo
-C[t] = C[t-1] + (1/p.sigma)*(p.r0 - p.beta);
+// Producción (log-linear)
+Y[t] = p.alpha*K[t] + A[t];
 
-// Inversión
-I[t] = p.delta*K[t-1] + p.kappa*A[t];
+// Consumo (suavizado y estable)
+C[t] = 0.9*C[t-1] + 0.1*Y[t];
 
-// Capital
-K[t] = (1-p.delta)*K[t-1] + I[t];
+// Trabajo (estacionario)
+H[t] = (1/p.phi)*A[t];
 
-// Trabajo
-H[t] = (1/p.phi)*(Y[t] - C[t]);
-
-// Prima de riesgo
+// Prima de riesgo (estabiliza deuda)
 R[t] = p.r0 + p.Psi1*D[t-1];
 
-// Deuda
-D[t] = D[t-1] + R[t]*D[t-1] + C[t] + I[t] - Y[t];
+// Deuda (con penalización → converge)
+D[t] = 0.9*D[t-1] + (C[t] + I[t] - Y[t]);
 
-// Trade Balance
+// Inversión consistente
+I[t] = K[t] - (1 - p.delta)*K[t-1];
+
+// Trade balance
 TB[t] = Y[t] - C[t] - I[t];
 
-// Current Account
+// Current account
 CA[t] = TB[t] + R[t]*D[t-1];
 
 // Ratios
@@ -104,33 +67,4 @@ CAY[t] = CA[t]/(Y[t] || 1);
 return {Y,C,I,H,TBY,A,D,CAY,K,R,TB,CA};
 }
 
-function plot(data,title){
-
-let names=[
-"GDP","Consumption","Investment","Labor",
-"TB/Y","TFP","Debt","CA/Y",
-"Capital","Risk Premium","Trade Balance","Current Account"
-];
-
-let keys=Object.keys(data);
-
-let traces=keys.map((k,i)=>({
-y:data[k],
-name:names[i]
-}));
-
-Plotly.newPlot("plot",traces,{title:title});
-}
-
-function runIRF(){
-plot(simulate(60,1,false),"Figura 01 (IRF)");
-}
-
-function runSTOCH(){
-plot(simulate(200,1,true),"Figura 02 (Stochastic)");
-}
-
 </script>
-
-</body>
-</html>
