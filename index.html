@@ -117,14 +117,12 @@ yaxis:{title:"Deviation from steady state"}
 });
 }
 
-// 🔹 IRF hasta t = 10
 function runIRF(){
 plot(simulate(10,1,false),"Figura 01 (IRF)");
 }
 
-// 🔹 Estocástico hasta 150,000
 function runSTOCH(){
-plot(simulate(150000,1,true),"Figura 02 (Stochastic)");
+plot(simulate(150,1,true),"Figura 02 (Stochastic)");
 }
 
 </script>
