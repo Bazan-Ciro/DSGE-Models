@@ -1,119 +1,138 @@
-<hr>
-<h2>SOE-RBC Interactive Simulator (Extended Parameters)</h2>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SOE-RBC DSGE Simulator</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<style>
+body { font-family: Arial; margin: 20px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+</style>
+</head>
 
-<button onclick="runIRF()">Run IRF</button>
-<button onclick="runStochastic()">Run Stochastic</button>
+<body>
+
+<h2>SOE-RBC Interactive Simulator</h2>
+
+<button onclick="runIRF()">IRF (Figure 01)</button>
+<button onclick="runSTOCH()">Stochastic (Figure 02)</button>
 
 <h3>Parameters</h3>
 
-<div id="controls">
-
-σ <input type="number" id="sigma" value="2" step="0.1"><br>
-δ <input type="number" id="delta" value="0.1" step="0.01"><br>
-r0 <input type="number" id="r0" value="0.04" step="0.01"><br>
-β <input type="number" id="beta" value="0.96" step="0.01"><br>
-α <input type="number" id="alpha" value="0.33" step="0.01"><br>
-w <input type="number" id="w" value="1" step="0.1"><br>
-φ <input type="number" id="phi" value="1" step="0.1"><br>
-Ψ1 <input type="number" id="psi1" value="0.01" step="0.01"><br>
-ρ <input type="number" id="rho" value="0.9" step="0.01"><br>
-η <input type="number" id="eta" value="0.1" step="0.01"><br>
-κ <input type="number" id="kappa" value="0.2" step="0.01"><br>
-
-Shock <input type="number" id="shock" value="1" step="0.1"><br>
-
+<div class="grid">
+<label>sigma <input type="number" id="sigma" value="2"></label>
+<label>delta <input type="number" id="delta" value="0.1"></label>
+<label>r0 <input type="number" id="r0" value="0.04"></label>
+<label>beta <input type="number" id="beta" value="0.96"></label>
+<label>alpha <input type="number" id="alpha" value="0.33"></label>
+<label>w <input type="number" id="w" value="1"></label>
+<label>phi <input type="number" id="phi" value="1.5"></label>
+<label>Psi1 <input type="number" id="Psi1" value="0.01"></label>
+<label>rho <input type="number" id="rho" value="0.9"></label>
+<label>eta <input type="number" id="eta" value="0.01"></label>
+<label>kappa <input type="number" id="kappa" value="0.1"></label>
 </div>
 
-<div id="plot" style="width:100%;height:600px;"></div>
-
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plot" style="height:800px;"></div>
 
 <script>
 
-function getParams(){
-    return {
-        sigma: parseFloat(sigma.value),
-        delta: parseFloat(delta.value),
-        r0: parseFloat(r0.value),
-        beta: parseFloat(beta.value),
-        alpha: parseFloat(alpha.value),
-        w: parseFloat(w.value),
-        phi: parseFloat(phi.value),
-        psi1: parseFloat(psi1.value),
-        rho: parseFloat(rho.value),
-        eta: parseFloat(eta.value),
-        kappa: parseFloat(kappa.value),
-        shock: parseFloat(shock.value)
-    };
+function simulate(T, shock, stochastic=false){
+
+let p = {
+sigma: parseFloat(sigma.value),
+delta: parseFloat(delta.value),
+r0: parseFloat(r0.value),
+beta: parseFloat(beta.value),
+alpha: parseFloat(alpha.value),
+w: parseFloat(w.value),
+phi: parseFloat(phi.value),
+Psi1: parseFloat(Psi1.value),
+rho: parseFloat(rho.value),
+eta: parseFloat(eta.value),
+kappa: parseFloat(kappa.value)
+};
+
+// Variables
+let Y=[], C=[], I=[], H=[], TB_Y=[], A=[], D=[], CA_Y=[], K=[], R=[], TB=[], CA[];
+
+for(let t=0;t<T;t++){
+Y.push(0);C.push(0);I.push(0);H.push(0);
+TB_Y.push(0);A.push(0);D.push(0);CA_Y.push(0);
+K.push(0);R.push(0);TB.push(0);CA.push(0);
 }
 
-function simulate(T, stochastic=false){
+for(let t=1;t<T;t++){
 
-    let p = getParams();
+let eps = stochastic ? shock*(Math.random()-0.5) : (t==1?shock:0);
 
-    let y=[], c=[], i=[], h=[], k=[], d=[], A=[];
-    
-    for(let t=0;t<T;t++){
-        y.push(0); c.push(0); i.push(0);
-        h.push(0); k.push(1); d.push(0); A.push(0);
-    }
+A[t] = p.rho*A[t-1] + eps;
 
-    for(let t=1;t<T;t++){
+// Producción
+Y[t] = p.alpha*K[t-1] + (1-p.alpha)*H[t] + A[t];
 
-        let eps = stochastic ? p.shock*(Math.random()*2-1) : (t===1 ? p.shock : 0);
+// Consumo (Euler simplificado)
+C[t] = C[t-1] + (1/p.sigma)*(p.r0 - p.beta);
 
-        // TFP
-        A[t] = p.rho*A[t-1] + eps;
+// Inversión
+I[t] = p.delta*K[t-1] + p.kappa*(A[t]);
 
-        // Capital accumulation
-        k[t] = (1-p.delta)*k[t-1] + i[t-1];
+// Capital
+K[t] = (1-p.delta)*K[t-1] + I[t];
 
-        // Production (log-linear approx)
-        y[t] = p.alpha*k[t-1] + (1-p.alpha)*h[t-1] + A[t];
+// Trabajo
+H[t] = (1/p.phi)*(Y[t] - C[t]);
 
-        // Consumption (Euler approx)
-        c[t] = c[t-1] + (1/p.sigma)*(p.r0 - p.beta*(y[t]-y[t-1]));
+// Prima de riesgo
+R[t] = p.r0 + p.Psi1*(Math.exp(D[t-1]) - 1);
 
-        // Investment
-        i[t] = p.kappa*(y[t] - c[t]) - p.delta*k[t-1];
+// Deuda externa
+D[t] = D[t-1] + R[t]*D[t-1] + C[t] + I[t] - Y[t];
 
-        // Labor supply
-        h[t] = (1/p.phi)*(p.w - c[t]);
+// Trade balance
+TB[t] = Y[t] - C[t] - I[t];
 
-        // Debt dynamics
-        d[t] = d[t-1] + p.eta*(c[t] + i[t] - y[t]) + p.psi1*d[t-1];
-    }
+// Current account
+CA[t] = TB[t] + R[t]*D[t-1];
 
-    return {y,c,i,h,k,d,A};
+// Ratios
+TB_Y[t] = TB[t]/(Y[t]||1);
+CA_Y[t] = CA[t]/(Y[t]||1);
+
 }
 
-function plot(data, title){
+return {Y,C,I,H,TB_Y,A,D,CA_Y,K,R,TB,CA};
+}
 
-    let traces = [
-        {y:data.y, name:"Output"},
-        {y:data.c, name:"Consumption"},
-        {y:data.i, name:"Investment"},
-        {y:data.h, name:"Labor"},
-        {y:data.k, name:"Capital"},
-        {y:data.d, name:"Debt"},
-        {y:data.A, name:"TFP"}
-    ];
+function plotAll(data,title){
 
-    Plotly.newPlot("plot", traces, {
-        title: title,
-        xaxis:{title:"Time"},
-        yaxis:{title:"Deviation"}
-    });
+let names = [
+"GDP","Consumption","Investment","Labor",
+"TB/Y","TFP","Debt","CA/Y",
+"Capital","Risk Premium","Trade Balance","Current Account"
+];
+
+let keys = Object.keys(data);
+
+let traces = keys.map((k,i)=>({
+y:data[k],
+name:names[i]
+}));
+
+Plotly.newPlot("plot",traces,{title:title});
 }
 
 function runIRF(){
-    let data = simulate(50,false);
-    plot(data,"Impulse Response Functions");
+let data = simulate(60,1,false);
+plotAll(data,"IRF - Figure 01");
 }
 
-function runStochastic(){
-    let data = simulate(200,true);
-    plot(data,"Stochastic Simulation");
+function runSTOCH(){
+let data = simulate(200,1,true);
+plotAll(data,"Stochastic Simulation - Figure 02");
 }
 
 </script>
+
+</body>
+</html>
